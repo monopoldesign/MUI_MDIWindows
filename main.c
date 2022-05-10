@@ -18,12 +18,14 @@
 *******************************************************************************/
 #include <stdio.h>
 //#include <stdlib.h>
-//#include <string.h>
+#include <string.h>
 
 #include <exec/memory.h>
 #include <libraries/mui.h>
 #include <proto/exec.h>
 
+#include <pragma/gadtools_lib.h>
+#include <pragma/graphics_lib.h>
 #include <pragma/muimaster_lib.h>
 
 /******************************************************************************
@@ -39,6 +41,10 @@ void init(void);
 void end(void);
 struct ObjApp * CreateApp(void);
 void DisposeApp(struct ObjApp * ObjectApp);
+
+int SetupScreen(void);
+ULONG CloneScreen(void);
+void CloseDownScreen(void);
 
 /******************************************************************************
 * Definitions
@@ -61,6 +67,27 @@ struct Library *MUIMasterBase;
 char buffer[40];
 struct ObjApp *App = NULL;
 
+struct Screen *myScreen = NULL;
+struct TextFont *openedFont;
+UBYTE *fontName;
+STRPTR myPubScreen = "MUI_MDI";
+
+APTR VisualInfo = NULL;
+struct TextAttr topaz8 = {(STRPTR)"topaz.font", 8, 0x00, 0x01 };
+
+struct ColorSpec ScreenColors[] = {
+	 0, 0x09, 0x09, 0x09,
+	 1, 0x00, 0x00, 0x00,
+	 2, 0x0F, 0x0F, 0x0F,
+	 3, 0x05, 0x07, 0x0A,
+	 4, 0x08, 0x08, 0x08,
+	 5, 0x0A, 0x0A, 0x0A,
+	 6, 0x0A, 0x09, 0x08,
+	 7, 0x0E, 0x0A, 0x09,
+	~0, 0x00, 0x00, 0x00};
+
+UWORD DriPens[] = {~0};
+
 /******************************************************************************
 * Main-Program
 *******************************************************************************/
@@ -74,6 +101,12 @@ int main(int argc, char *argv[])
 	ULONG signal;
 
 	init();
+
+	if (CloneScreen() != 0)
+	{
+		printf("Can't Open Screen\n");
+		end();
+	}
 
 	if (!(App = CreateApp()))
 	{
@@ -100,6 +133,7 @@ int main(int argc, char *argv[])
 	}
 
 	DisposeApp(App);
+	CloseDownScreen();
 	end();
 }
 
@@ -153,9 +187,11 @@ struct ObjApp * CreateApp(void)
 	End;
 
 	ObjectApp->WI_label_0 = WindowObject,
-		MUIA_Window_Title,	"MUI_MDI",
-		MUIA_Window_ID,		MAKE_ID('0', 'W', 'I', 'N'),
-		WindowContents,		GROUP_ROOT_0,
+		MUIA_Window_Title,			"MUI_MDI",
+		MUIA_Window_ID,				MAKE_ID('0', 'W', 'I', 'N'),
+		WindowContents,				GROUP_ROOT_0,
+		//MUIA_Window_Screen,			&myScreen,
+		MUIA_Window_ScreenTitle,	myPubScreen,
 	End;
 
 	ObjectApp->App = ApplicationObject,
@@ -194,4 +230,95 @@ void DisposeApp(struct ObjApp * ObjectApp)
 {
 	MUI_DisposeObject(ObjectApp->App);
 	FreeVec(ObjectApp);
+}
+
+/*-----------------------------------------------------------------------------
+- DisposeApp()
+------------------------------------------------------------------------------*/
+ULONG CloneScreen(void)
+{
+	STRPTR pubScreenName = "Workbench";
+
+	struct Screen *pubScreen = NULL;
+	struct DrawInfo *screenDrawInfo = NULL;
+	struct TextAttr pubScreenFont;
+
+	ULONG screenModeID;
+	UBYTE *pubScreenFontName;
+	ULONG fontNameSize;
+
+	pubScreen = LockPubScreen(pubScreenName);
+	if (pubScreen != NULL)
+	{
+		screenDrawInfo = GetScreenDrawInfo(pubScreen);
+		if (screenDrawInfo != NULL)
+		{
+			screenModeID = GetVPModeID(&(pubScreen->ViewPort));
+			if (screenModeID != INVALID_ID)
+			{
+				pubScreenFontName = screenDrawInfo->dri_Font->tf_Message.mn_Node.ln_Name;
+				fontNameSize = 1 + strlen(pubScreenFontName);
+				fontName = AllocVec(fontNameSize, MEMF_CLEAR);
+
+				if (fontName != NULL)
+				{
+					strcpy(fontName, pubScreenFontName);
+					pubScreenFont.ta_Name = fontName;
+					pubScreenFont.ta_YSize = screenDrawInfo->dri_Font->tf_YSize;
+					pubScreenFont.ta_Style = screenDrawInfo->dri_Font->tf_Style;
+					pubScreenFont.ta_Flags = screenDrawInfo->dri_Font->tf_Flags;
+
+					openedFont = OpenFont(&pubScreenFont);
+
+					if (openedFont != NULL)
+					{
+						if (!(myScreen = OpenScreenTags(NULL,
+										SA_Left,		0,
+										SA_Top,			0,
+										SA_Width,		pubScreen->Width,
+										SA_Height,		pubScreen->Height,
+										SA_Depth,		screenDrawInfo->dri_Depth,
+										SA_Overscan,	OSCAN_TEXT,
+										SA_Pens,		screenDrawInfo->dri_Pens,
+										SA_Font,		&pubScreenFont,
+										SA_DisplayID,	screenModeID,
+										SA_Title,		"MUI_MDIWindows V0.1, (C)2022 M.Volkel",
+										SA_PubName,		myPubScreen,
+										SA_Type,		PUBLICSCREEN,
+										//SA_Colors,	&ScreenColors[0],
+										//SA_Type,		CUSTOMSCREEN,
+										TAG_DONE)))
+						{
+							return 1;
+						}
+
+						FreeScreenDrawInfo(pubScreen, screenDrawInfo);
+						UnlockPubScreen(pubScreenName, pubScreen);
+						pubScreen = NULL;
+						return 0;
+					}
+				}
+				FreeVec(fontName);
+			}
+		}
+	}
+	return 2;
+}
+
+/*-----------------------------------------------------------------------------
+- DisposeApp()
+------------------------------------------------------------------------------*/
+void CloseDownScreen(void)
+{
+	if (myScreen)
+	{
+		CloseScreen(myScreen);
+		myScreen = NULL;
+
+		if (openedFont)
+			CloseFont(openedFont);
+
+		if (fontName)
+			FreeVec(fontName);
+	}
 }
