@@ -67,10 +67,10 @@ struct Library *MUIMasterBase;
 char buffer[40];
 struct ObjApp *App = NULL;
 
-struct Screen *myScreen = NULL;
+struct Screen *myScreen;
 struct TextFont *openedFont;
 UBYTE *fontName;
-STRPTR myPubScreen = "MUI_MDI";
+STRPTR myPubScreen = "MUI_MDI_Screen";
 
 APTR VisualInfo = NULL;
 struct TextAttr topaz8 = {(STRPTR)"topaz.font", 8, 0x00, 0x01 };
@@ -190,8 +190,11 @@ struct ObjApp * CreateApp(void)
 		MUIA_Window_Title,			"MUI_MDI",
 		MUIA_Window_ID,				MAKE_ID('0', 'W', 'I', 'N'),
 		WindowContents,				GROUP_ROOT_0,
-		//MUIA_Window_Screen,			&myScreen,
-		MUIA_Window_ScreenTitle,	myPubScreen,
+		MUIA_Window_Screen,			&myScreen,
+		//MUIA_Window_ScreenTitle,	myPubScreen,
+		//MUIA_Window_PublicScreen,	myPubScreen,
+		MUIA_Window_LeftEdge,		0,
+		MUIA_Window_TopEdge,		0,
 	End;
 
 	ObjectApp->App = ApplicationObject,
@@ -278,15 +281,16 @@ ULONG CloneScreen(void)
 										SA_Width,		pubScreen->Width,
 										SA_Height,		pubScreen->Height,
 										SA_Depth,		screenDrawInfo->dri_Depth,
-										SA_Overscan,	OSCAN_TEXT,
+										//SA_Overscan,	OSCAN_TEXT,
 										SA_Pens,		screenDrawInfo->dri_Pens,
 										SA_Font,		&pubScreenFont,
-										SA_DisplayID,	screenModeID,
+
+										//SA_DisplayID,	screenModeID,
 										SA_Title,		"MUI_MDIWindows V0.1, (C)2022 M.Volkel",
 										SA_PubName,		myPubScreen,
 										SA_Type,		PUBLICSCREEN,
 										//SA_Colors,	&ScreenColors[0],
-										//SA_Type,		CUSTOMSCREEN,
+										///SA_Type,		CUSTOMSCREEN,
 										TAG_DONE)))
 						{
 							return 1;
