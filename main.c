@@ -67,6 +67,7 @@ char buffer[40];
 struct ObjApp *App = NULL;
 
 struct Screen *myScreen;
+UBYTE *screenName = "MDISCREEN";
 
 /******************************************************************************
 * Main-Program
@@ -223,7 +224,7 @@ ULONG SetupScreen(void)
 	if (!(myScreen = OpenScreenTags(NULL, 
 		SA_LikeWorkbench, TRUE,
 		SA_Type, PUBLICSCREEN,
-		SA_PubName, "MDISCREEN",
+		SA_PubName, screenName,
 		SA_Title, "MUI_MDIWindows V0.1, (C)2022 M.Volkel",
 		SA_ShowTitle, TRUE,
 		TAG_DONE)))
@@ -233,7 +234,7 @@ ULONG SetupScreen(void)
 
 	while (PubScreenStatus(myScreen, NULL) == 0);
 
-	LockPubScreen("MDISCREEN");
+	LockPubScreen(screenName);
 	return 0;
 }
 
