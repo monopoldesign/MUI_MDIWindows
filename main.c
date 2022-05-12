@@ -33,29 +33,22 @@
 *******************************************************************************/
 #define HOOKPROTONH(name, ret, obj, param) ret name(register __a2 obj, register __a1 param)
 #define MakeHook(hookName, hookFunc) struct Hook hookName = {{NULL, NULL}, (HOOKFUNC)hookFunc, NULL, NULL}
+#define DISPATCHER(name) LONG name(register __a0 Class *cl, register __a2 Object *obj, register __a1 Msg msg)
 
 /******************************************************************************
 * Prototypes
 *******************************************************************************/
-void init(void);
-void end(void);
-struct ObjApp * CreateApp(void);
-void DisposeApp(struct ObjApp * ObjectApp);
-
-ULONG SetupScreen(void);
+BOOL initLibs(void);
+void exitLibs(void);
+BOOL initClasses(void);
+void exitClasses(void);
+BOOL SetupScreen(void);
 void CloseDownScreen(void);
 
 /******************************************************************************
 * Definitions
 *******************************************************************************/
 #define MAKE_ID(a, b, c, d) ((ULONG)(a) << 24 | (ULONG)(b) << 16 | (ULONG)(c) << 8 | (ULONG)(d))
-
-struct ObjApp
-{
-	APTR	App;
-	APTR	WI_label_0;
-	APTR	BT_label_0;
-};
 
 /******************************************************************************
 * Global Variables
@@ -69,6 +62,111 @@ struct ObjApp *App = NULL;
 struct Screen *myScreen;
 UBYTE *screenName = "MDISCREEN";
 
+struct MUI_CustomClass *CL_mainW;
+
+/******************************************************************************
+* Help-Functions
+*******************************************************************************/
+ULONG DoSuperNew(struct IClass *cl, Object *obj, ULONG tag1, ...)
+{
+	return (DoSuperMethod(cl, obj, OM_NEW, &tag1, NULL));
+}
+
+LONG xget(Object *obj, ULONG attribute)
+{
+	LONG x;
+	get(obj, attribute, &x);
+	return(x);
+}
+
+/******************************************************************************
+* MUI-Custom-Class
+*******************************************************************************/
+/*-----------------------------------------------------------------------------
+- Definitions/Variables
+------------------------------------------------------------------------------*/
+#define TAGBASE_CLASS (TAG_USER | 0x80420000)
+#define MUIM_mainW_Finish		TAGBASE_CLASS + 1
+#define MUIM_mainW_newWindow	TAGBASE_CLASS + 2
+
+struct mainW_Data
+{
+	Object *BT_New;
+};
+
+struct MUIP_mainW_Finish
+{
+	ULONG MethodID;
+	LONG level;
+};
+
+/*-----------------------------------------------------------------------------
+- OM_NEW
+------------------------------------------------------------------------------*/
+ULONG mainW_New(struct IClass *cl, Object *obj, struct opSet *msg)
+{
+	struct mainW_Data tmp = {0};
+
+	if (obj = (Object *)DoSuperNew(cl, obj,
+		MUIA_Window_Title,			"MUI_MDI",
+		MUIA_Window_ID,				MAKE_ID('M', 'A', 'I', 'N'),
+		WindowContents,				tmp.BT_New = SimpleButton("New Window"),
+		MUIA_Window_Screen,			myScreen,
+		TAG_MORE, msg->ops_AttrList))
+	{
+		struct mainW_Data *data = INST_DATA(cl, obj);
+		*data = tmp;
+
+		DoMethod(obj, MUIM_Notify, MUIA_Window_CloseRequest, TRUE, obj, 2, MUIM_mainW_Finish, 0);
+		DoMethod(data->BT_New, MUIM_Notify, MUIA_Pressed, FALSE, obj, 1, MUIM_mainW_newWindow);
+
+		return (ULONG)obj;
+	}
+	return 0;
+}
+
+ULONG mainW_Finish(struct IClass *cl, Object *obj, struct MUIP_mainW_Finish *msg)
+{
+	struct mainW_Data *data = INST_DATA(cl, obj);
+
+	DoMethod((Object *)xget(obj, MUIA_ApplicationObject), MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit);
+	return 0;
+}
+
+ULONG mainW_newWindow(struct IClass *cl, Object *obj, Msg msg)
+{
+	Object *win;
+
+	set((Object *)xget(obj, MUIA_ApplicationObject), MUIA_Application_Sleep, TRUE);
+
+	if (win = (Object *)NewObject(CL_mainW->mcc_Class, NULL, TAG_DONE))
+	{
+		DoMethod((Object *)xget(obj, MUIA_ApplicationObject), OM_ADDMEMBER, win);
+		set(win, MUIA_Window_Open, TRUE);
+	}
+
+	set((Object *)xget(obj, MUIA_ApplicationObject), MUIA_Application_Sleep, FALSE);
+	return 0;
+}
+
+/*-----------------------------------------------------------------------------
+- Dispatcher
+------------------------------------------------------------------------------*/
+DISPATCHER(mainW_Dispatcher)
+{
+	switch(msg->MethodID)
+	{
+		case OM_NEW:
+			return mainW_New(cl, obj, (APTR)msg);
+		case MUIM_mainW_Finish:
+			return mainW_Finish(cl, obj, (APTR)msg);
+		case MUIM_mainW_newWindow:
+			return mainW_newWindow(cl, obj, (APTR)msg);
+	}
+
+	return DoSuperMethodA(cl, obj, msg);
+}
+
 /******************************************************************************
 * Main-Program
 *******************************************************************************/
@@ -78,148 +176,115 @@ UBYTE *screenName = "MDISCREEN";
 ------------------------------------------------------------------------------*/
 int main(int argc, char *argv[])
 {
+	Object *app, *win;
 	BOOL running = TRUE;
 	ULONG signal;
 
-	init();
-
-	if (SetupScreen() != 0)
+	if (initLibs())
 	{
-		printf("Can't Open Screen\n");
-		end();
-	}
-
-	if (!(App = CreateApp()))
-	{
-		printf("Can't Create App\n");
-		end();
-	}
-
-	while (running)
-	{
-		switch (DoMethod(App->App, MUIM_Application_NewInput, &signal))
+		if (SetupScreen())
 		{
-			// Window close
-			case MUIV_Application_ReturnID_Quit:
-				if ((MUI_RequestA(App->App, App->WI_label_0, 0, "Quit?", "_Yes|_No", "\33cAre you sure?", 0)) == 1)
-					running = FALSE;
-			break;
+			if (initClasses())
+			{
+				app = ApplicationObject,
+					MUIA_Application_Author,		"M.Volkel",
+					MUIA_Application_Base,			"MUIMDI",
+					MUIA_Application_Title,			"MUI_MDIWindows",
+					MUIA_Application_Version,		"$VER: MUI_MDIWindows V0.1",
+					MUIA_Application_Copyright,		"(C)2022 M.Volkel",
+					MUIA_Application_Description,	"MUI-MDIWindows",
+					MUIA_Application_Window,		win = NewObject(CL_mainW->mcc_Class, NULL, TAG_DONE),
+				End;
 
-			default:
-				break;
+				if (app)
+				{
+					set(win, MUIA_Window_Open, TRUE);
+
+					while (running)
+					{
+						switch (DoMethod(app, MUIM_Application_NewInput, &signal))
+						{
+							// Window close
+							case MUIV_Application_ReturnID_Quit:
+								if ((MUI_RequestA(app, win, 0, "Quit?", "_Yes|_No", "\33cAre you sure?", 0)) == 1)
+									running = FALSE;
+							break;
+
+							default:
+								break;
+						}
+
+						if (running && signal)
+							Wait(signal);
+					}
+					set(win, MUIA_Window_Open, FALSE);
+					MUI_DisposeObject(app);
+				}
+				exitClasses();
+			}
 		}
-
-		if (running && signal)
-			Wait(signal);
+		CloseDownScreen();
+		exitLibs();
 	}
-
-	DisposeApp(App);
-	CloseDownScreen();
-	end();
+	exit(0);
 }
 
 /*-----------------------------------------------------------------------------
 - init()
 ------------------------------------------------------------------------------*/
-void init(void)
+BOOL initLibs(void)
 {
-	if (!(IntuitionBase = (struct IntuitionBase *)OpenLibrary("intuition.library", 37)))
-	{
-		printf("Can't Open Intuition Library\n");
-		exit(20);
-	}
+	IntuitionBase = (struct IntuitionBase *)OpenLibrary("intuition.library", 37);
+	MUIMasterBase = OpenLibrary(MUIMASTER_NAME, MUIMASTER_VMIN);
 
-	if (!(MUIMasterBase = OpenLibrary(MUIMASTER_NAME, MUIMASTER_VMIN)))
-	{
-		printf("Can't Open MUIMaster Library\n");
-		CloseLibrary((struct Library *)IntuitionBase);
-		exit(20);
-	}
+	if (IntuitionBase && MUIMasterBase)
+		return TRUE;
+
+	exitLibs();
+	return FALSE;
 }
 
 /*-----------------------------------------------------------------------------
 - end()
 ------------------------------------------------------------------------------*/
-void end(void)
+void exitLibs(void)
 {
-	CloseLibrary((struct Library *)MUIMasterBase);
-	CloseLibrary((struct Library *)IntuitionBase);
+	if (MUIMasterBase)
+		CloseLibrary((struct Library *)MUIMasterBase);
+
+	if (IntuitionBase)
+		CloseLibrary((struct Library *)IntuitionBase);
+
 	exit(0);
 }
 
 /*-----------------------------------------------------------------------------
-- CreateApp()
+- DisposeApp()
 ------------------------------------------------------------------------------*/
-struct ObjApp * CreateApp(void)
+BOOL initClasses(void)
 {
-	struct ObjApp * ObjectApp;
+	CL_mainW = MUI_CreateCustomClass(NULL, MUIC_Window, NULL, sizeof(struct mainW_Data), mainW_Dispatcher);
 
-	APTR	GROUP_ROOT_0;
+	if (CL_mainW)
+		return TRUE;
 
-	if (!(ObjectApp = AllocVec(sizeof(struct ObjApp), MEMF_CLEAR)))
-		return(NULL);
-
-	ObjectApp->BT_label_0 = SimpleButton("Exit");
-
-	GROUP_ROOT_0 = GroupObject,
-		MUIA_Group_Columns,		1,
-		MUIA_Group_SameSize,	TRUE,
-		Child,					ObjectApp->BT_label_0,
-	End;
-
-	ObjectApp->WI_label_0 = WindowObject,
-		MUIA_Window_Title,			"MUI_MDI",
-		MUIA_Window_ID,				MAKE_ID('0', 'W', 'I', 'N'),
-		WindowContents,				GROUP_ROOT_0,
-		MUIA_Window_LeftEdge,		100,
-		MUIA_Window_TopEdge,		100,
-		MUIA_Window_Width,			100,
-		MUIA_Window_Height,			100,
-		MUIA_Window_Screen,			myScreen,
-	End;
-
-	ObjectApp->App = ApplicationObject,
-		MUIA_Application_Author,		"M.Volkel",
-		MUIA_Application_Base,			"MUIMDI",
-		MUIA_Application_Title,			"MUI_MDIWindows",
-		MUIA_Application_Version,		"$VER: MUI_MDIWindows V0.1",
-		MUIA_Application_Copyright,		"(C)2022 M.Volkel",
-		MUIA_Application_Description,	"MUI-MDIWindows",
-		SubWindow,						ObjectApp->WI_label_0,
-	End;
-
-
-	if (!ObjectApp->App)
-	{
-		FreeVec(ObjectApp);
-		return(NULL);
-	}
-
-	// Window-Close-Method
-	DoMethod(ObjectApp->WI_label_0, MUIM_Notify, MUIA_Window_CloseRequest, TRUE, ObjectApp->App, 2, MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit);
-
-	// Exit-Button
-	DoMethod(ObjectApp->BT_label_0, MUIM_Notify, MUIA_Pressed, MUIV_EveryTime, ObjectApp->App, 2, MUIM_Application_ReturnID, MUIV_Application_ReturnID_Quit);
-
-	// Open Window
-	set(ObjectApp->WI_label_0, MUIA_Window_Open, TRUE);
-
-	return(ObjectApp);
+	exitClasses();
+	return FALSE;
 }
 
 /*-----------------------------------------------------------------------------
 - DisposeApp()
 ------------------------------------------------------------------------------*/
-void DisposeApp(struct ObjApp * ObjectApp)
+void exitClasses(void)
 {
-	MUI_DisposeObject(ObjectApp->App);
-	FreeVec(ObjectApp);
+	if (CL_mainW)
+		MUI_DeleteCustomClass(CL_mainW);
 }
 
 /*-----------------------------------------------------------------------------
 - DisposeApp()
 ------------------------------------------------------------------------------*/
-ULONG SetupScreen(void)
+BOOL SetupScreen(void)
 {
 	if (!(myScreen = OpenScreenTags(NULL, 
 		SA_LikeWorkbench, TRUE,
@@ -229,13 +294,13 @@ ULONG SetupScreen(void)
 		SA_ShowTitle, TRUE,
 		TAG_DONE)))
 	{
-		return 1;
+		return FALSE;
 	}
 
 	while (PubScreenStatus(myScreen, NULL) == 0);
 
 	LockPubScreen(screenName);
-	return 0;
+	return TRUE;
 }
 
 /*-----------------------------------------------------------------------------
