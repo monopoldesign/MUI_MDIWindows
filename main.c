@@ -63,6 +63,7 @@ struct Screen *myScreen;
 UBYTE *screenName = "MDISCREEN";
 
 struct MUI_CustomClass *CL_mainW;
+Object *win2 = NULL;
 
 /******************************************************************************
 * Help-Functions
@@ -135,14 +136,17 @@ ULONG mainW_Finish(struct IClass *cl, Object *obj, struct MUIP_mainW_Finish *msg
 
 ULONG mainW_newWindow(struct IClass *cl, Object *obj, Msg msg)
 {
-	Object *win;
+	struct mainW_Data *data = INST_DATA(cl, obj);
 
 	set((Object *)xget(obj, MUIA_ApplicationObject), MUIA_Application_Sleep, TRUE);
 
-	if (win = (Object *)NewObject(CL_mainW->mcc_Class, NULL, TAG_DONE))
+	if (!win2)
 	{
-		DoMethod((Object *)xget(obj, MUIA_ApplicationObject), OM_ADDMEMBER, win);
-		set(win, MUIA_Window_Open, TRUE);
+		if (win2 = (Object *)NewObject(CL_mainW->mcc_Class, NULL, TAG_DONE))
+		{
+			DoMethod((Object *)xget(obj, MUIA_ApplicationObject), OM_ADDMEMBER, win2);
+			set(win2, MUIA_Window_Open, TRUE);
+		}
 	}
 
 	set((Object *)xget(obj, MUIA_ApplicationObject), MUIA_Application_Sleep, FALSE);
