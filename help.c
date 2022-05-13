@@ -60,8 +60,6 @@ void exitLibs(void)
 
 	if (IntuitionBase)
 		CloseLibrary((struct Library *)IntuitionBase);
-
-	exit(0);
 }
 
 /*-----------------------------------------------------------------------------
@@ -114,10 +112,21 @@ BOOL SetupScreen(void)
 ------------------------------------------------------------------------------*/
 void CloseDownScreen(void)
 {
-	UnlockPubScreen(NULL, myScreen);
 	if (myScreen)
 	{
+		UnlockPubScreen(NULL, myScreen);
 		CloseScreen(myScreen);
 		myScreen = NULL;
 	}
+}
+
+/*-----------------------------------------------------------------------------
+- DisposeApp()
+------------------------------------------------------------------------------*/
+void errorShutdown(char *errorMsg)
+{
+	printf(errorMsg);
+	CloseDownScreen();
+	exitLibs();
+	exit(20);
 }

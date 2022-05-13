@@ -33,5 +33,6 @@ BOOL initClasses(void);
 void exitClasses(void);
 BOOL SetupScreen(void);
 void CloseDownScreen(void);
+void errorShutdown(char *errorMsg);
 
 #endif
