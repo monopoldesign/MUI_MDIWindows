@@ -33,6 +33,7 @@ UBYTE *screenName = "MDISCREEN";
 Object *app, *mainWin;
 
 struct MUI_CustomClass *CL_mainW;
+struct MUI_CustomClass *CL_slaveW;
 Object *win2 = NULL;
 
 /******************************************************************************

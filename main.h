@@ -59,6 +59,7 @@ extern struct Screen *myScreen;
 extern UBYTE *screenName;
 
 extern struct MUI_CustomClass *CL_mainW;
+extern struct MUI_CustomClass *CL_slaveW;
 extern Object *win2;
 
 #endif

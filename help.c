@@ -18,6 +18,7 @@
 *******************************************************************************/
 #include "main.h"
 #include "mainW.h"
+#include "slaveW.h"
 #include "help.h"
 
 /******************************************************************************
@@ -68,8 +69,9 @@ void exitLibs(void)
 BOOL initClasses(void)
 {
 	CL_mainW = MUI_CreateCustomClass(NULL, MUIC_Window, NULL, sizeof(struct mainW_Data), mainW_Dispatcher);
+	CL_slaveW = MUI_CreateCustomClass(NULL, MUIC_Window, NULL, sizeof(struct slaveW_Data), slaveW_Dispatcher);
 
-	if (CL_mainW)
+	if (CL_mainW && CL_slaveW)
 		return TRUE;
 
 	exitClasses();
@@ -83,6 +85,9 @@ void exitClasses(void)
 {
 	if (CL_mainW)
 		MUI_DeleteCustomClass(CL_mainW);
+
+	if (CL_slaveW)
+		MUI_DeleteCustomClass(CL_slaveW);
 }
 
 /*-----------------------------------------------------------------------------
