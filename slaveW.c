@@ -33,7 +33,7 @@ ULONG slaveW_New(struct IClass *cl, Object *obj, struct opSet *msg)
 
 	if (obj = (Object *)DoSuperNew(cl, obj,
 		MUIA_Window_Title,			"MUI_MDI_Slave",
-		MUIA_Window_ID,				MAKE_ID('M', 'A', 'I', 'N'),
+		MUIA_Window_ID,				MAKE_ID('S', 'L', 'A', 'V'),
 		WindowContents,				tmp.BT_Close = SimpleButton("Close"),
 		MUIA_Window_Screen,			myScreen,
 		TAG_MORE, msg->ops_AttrList))
